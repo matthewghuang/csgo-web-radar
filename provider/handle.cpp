@@ -42,20 +42,6 @@ std::string proc_handle::get_executable() {
     return line;
 }
 
-std::string proc_handle::get_link(std::string target) {
-    char buffer[PATH_MAX];
-
-    ssize_t bytes_written = readlink(target.c_str(), buffer, sizeof(buffer));
-        
-    if (bytes_written != -1) {
-        buffer[bytes_written] = 0; // readlink doesn't append null byte
-
-        return std::string(buffer);
-    }
-
-    return std::string();
-}
-
 bool proc_handle::read(unsigned long addr, void *buffer, size_t size) {
     struct iovec local[1];
     struct iovec remote[1];
