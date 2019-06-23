@@ -33,8 +33,13 @@ bool proc_handle::is_running() {
     return stat(std::string("/proc/" + this->pid_str).c_str(), &proc_stat) == 0; 
 }
 
-std::string proc_handle::get_executable_path() {
-    return get_link(std::string("/proc/" + pid_str + "/exe"));
+std::string proc_handle::get_executable() {
+    std::ifstream istream("/proc/" + pid_str + "/comm");
+
+    std::string line;
+    std::getline(istream, line);
+
+    return line;
 }
 
 std::string proc_handle::get_link(std::string target) {

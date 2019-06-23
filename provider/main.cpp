@@ -32,19 +32,12 @@ bool find_process_by_name(std::string target, proc_handle *out_handle) {
             if (access(map_path.c_str(), F_OK) == -1) // if we can't access the path for whatever reason (not root?)
                 continue;
            
-            proc_handle handle(name);
+            proc_handle handle(name); // create a temporary object to check if we have the right file
 
             if (!handle.is_valid() || !handle.is_running())
                 continue;
 
-            std::string exe_path = handle.get_executable_path();
-            
-            size_t exe_name_pos = exe_path.find_last_of('/'); // get last part of string which contains executable name
-
-            if (exe_name_pos == std::string::npos)
-                continue;
-
-            std::string exe_name = exe_path.substr(exe_name_pos + 1);
+            std::string exe_name = handle.get_executable();
 
             if (!exe_name.compare(target)) {
                 *out_handle = handle;    
@@ -76,7 +69,14 @@ int main(int argc, char *argv[]) {
 
     proc_handle handle;
 
-    find_process_by_name("csgo_linux64", &handle);
+    bool found_process = find_process_by_name("csgo_linux64", &handle);
+
+    if (!found_process) {
+        std::cout << "unable to find csgo_linux64" << std::endl;
+        exit(1);
+    }
+
+    std::cout << "found csgo_linux64, pid: " << handle.pid_str << std::endl;
 
     unsigned long engine_base = handle.get_module_addr("engine_client.so");
     unsigned long client_base = handle.get_module_addr("client_panorama_client.so");
