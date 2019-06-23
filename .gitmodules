@@ -1,0 +1,3 @@
+[submodule "provider/easywsclient"]
+	path = provider/easywsclient
+	url = https://github.com/dhbaird/easywsclient

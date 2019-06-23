@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+
+    <title>Radar</title>
+</head>
+<body>
+    <img src="data/images/de_nuke_radar.png" id="map" width="512" height="512" style="position:absolute;">
+    <canvas id="radar" width="512" height="512" style="z-index:1000;position:relative;" />
+</body>
+<script>
+    let ws = new WebSocket("ws://" + window.location.hostname + ":6969");
+
+    const canvas = document.getElementById("radar");
+    const ctx = canvas.getContext("2d");
+
+    const map = document.getElementById("map");
+
+    const base_data_path = "/data";
+
+    let stored_map = "";
+    let pos_x;
+    let pos_y;
+    let scale;
+
+    let healths = [];
+    let x_positions = [];
+    let y_positions = [];
+    let last_places = [];
+
+    let x_ratio;
+    let y_ratio;
+
+    ws.addEventListener("message", (e) => {
+        const obj = JSON.parse(e.data);
+
+        if (obj.map_name != stored_map) {
+            stored_map = obj.map_name;
+
+            let img = new Image();
+            img.src = base_data_path + "/images/" + stored_map + "_radar.png";
+
+            map.src = img.src;
+
+            x_ratio = canvas.width / img.width;
+            y_ratio = canvas.height / img.height;
+        }
+
+        const data_path = base_data_path + "/" + obj.map_name;
+        fetch(data_path).then((res) => {
+            res.json().then((data) => {
+                pos_x = data.x;
+                pos_y = data.y;
+                scale = data.scale;
+            });
+        });
+
+        healths = obj.health;
+        x_positions = obj.x;
+        y_positions = obj.y;
+        last_places = obj.last_place;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (const i in healths) { // all arrays have same length
+            const health = healths[i];
+            const x = x_positions[i];
+            const y = y_positions[i];
+            const last_place = last_places[i];
+
+            const mapped_x = ((x - pos_x) / scale) * x_ratio;
+            const mapped_y = ((y - pos_y) / -scale) * y_ratio;
+
+            ctx.beginPath();
+            ctx.rect(mapped_x, mapped_y, 5, 5);
+            ctx.fillStyle = "red";
+            ctx.fill();
+            
+            ctx.font = "12px Arial";
+            ctx.fillText(last_place, mapped_x + 5, mapped_y + 5);
+        }
+    });
+</script>
