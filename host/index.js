@@ -83,7 +83,8 @@ fs.readdir(base_dir, (err, filenames) => {
 app.get("/data/:dataId", (req, res) => {
     const map = req.params.dataId;
 
-    res.send({ pos_x: stored_maps[map].pos_x, pos_y: stored_maps[map].pos_y, scale: stored_maps[map].scale });
+    if (stored_maps[map])
+        res.send({ pos_x: stored_maps[map].pos_x, pos_y: stored_maps[map].pos_y, scale: stored_maps[map].scale });
 });
 
 app.listen(web_port, () => {

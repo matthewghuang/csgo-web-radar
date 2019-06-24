@@ -108,23 +108,22 @@ int main(int argc, char *argv[]) {
         int local_team;
         handle.read(local_base + netvar.team, &local_team, sizeof(local_team));
 
-        std::vector<int> ids = {};
-        std::vector<float> x_positions = {};
-        std::vector<float> y_positions = {};
-        std::vector<int> healths = {};
-        std::vector<std::string> last_places = {};
+        std::vector<int> ids;
+        std::vector<float> x_positions;
+        std::vector<float> y_positions;
+        std::vector<int> healths;
+        std::vector<std::string> last_places;
 
         for (int i = 1; i <= 64; ++i) {
             unsigned long entity_base;
             handle.read(client_base + offset.entity_list + i * 0x10, &entity_base, sizeof(entity_base));
 
-            if (entity_base == NULL)
+            if (entity_base == NULL || entity_base == local_base)
                 continue;
 
             int entity_health;
             handle.read(entity_base + netvar.health, &entity_health, sizeof(entity_health));
 
-            // TODO: dormant check
             if (entity_health <= 0 || entity_health > 100) // check if entity is alive
                 continue;
 
@@ -155,6 +154,7 @@ int main(int argc, char *argv[]) {
         data["y_positions"] = y_positions;
         data["healths"] = healths;
         data["last_places"] = last_places;
+
         ws->send(data.dump());
         ws->poll();
 
