@@ -14,7 +14,7 @@ wss.on("connection", (ws) => {
 
     ws.on("message", (message) => { // when we recieve data from provider send to all other clients
         wss.clients.forEach((client) => {
-           client.send(message); 
+            client.send(message); 
         });
     });
 });
@@ -27,54 +27,63 @@ app.get("/data/images/:imgId", (req, res) => {
     res.sendFile(__dirname + "/data/images/" + req.params.imgId);
 });
 
-let saved_maps = {};
+let stored_maps = {};
+
+const base_dir = __dirname + "/data/";
+
+// parse map data files to find position offsets and scale of the maps
+fs.readdir(base_dir, (err, filenames) => {
+    if (err)
+        return;
+
+    for (const filename of filenames) {
+        fs.readFile(base_dir + filename, "utf-8", (err, content) => {
+            if (err)
+                return;
+
+            read_value = (key) => {
+                const start_idx = content.indexOf(key);
+
+                let numbers = "";
+                let found_number = false;
+
+                const subset = content.substr(start_idx);
+
+                for (const c of subset) {
+                    if (c.match(/[0-9.-]/)) {
+                        if (!found_number)
+                            found_number = true;
+
+                        numbers += c;
+                    } else {
+                        if (found_number)
+                            return parseFloat(numbers);
+                        else
+                            continue;
+                    }
+                }
+            }
+
+            const pos_x = read_value("pos_x");
+            const pos_y = read_value("pos_y");
+            const scale = read_value("scale");
+
+            const map_name_end = filename.indexOf(".");
+            const map_name = filename.substr(0, map_name_end);
+
+            stored_maps[map_name] = {
+                pos_x: pos_x,
+                pos_y: pos_y,
+                scale: scale
+            };
+        });
+    }
+});
 
 app.get("/data/:dataId", (req, res) => {
     const map = req.params.dataId;
 
-    fs.readFile(__dirname + "/data/" + map + ".txt", "utf8", (err, data) => {
-        read_numbers = (str, start_idx) => {
-            let numbers = "";
-            let found_number = false;
-
-            const subset = str.substr(start_idx);
-
-            for (const c of subset) {
-                if ("0123456789.-".includes(c)) { // check if we've hit a number
-                    found_number = true;
-                    numbers += c;   
-                } else {
-                    if (found_number)
-                        return parseFloat(numbers);
-                    else
-                        continue;
-                }
-            }
-        };
-
-        if (saved_maps.hasOwnProperty(map))
-            res.send({ x: saved_maps[map].x, y: saved_maps[map].y, scale: saved_maps[map].scale });
-        else {
-            const pos_x_start = data.indexOf("pos_x");
-            const pos_x = read_numbers(data, pos_x_start);
-
-            const pos_y_start = data.indexOf("pos_y");
-            const pos_y = read_numbers(data, pos_y_start);
-
-            const scale_start = data.indexOf("scale");
-            const scale = read_numbers(data, scale_start);
-
-            const obj = {
-                x: pos_x,
-                y: pos_y,
-                scale: scale
-            };
-
-            saved_maps[map] = obj;
-
-            res.send(obj);
-        }
-    });
+    res.send({ pos_x: stored_maps[map].pos_x, pos_y: stored_maps[map].pos_y, scale: stored_maps[map].scale });
 });
 
 app.listen(web_port, () => {
