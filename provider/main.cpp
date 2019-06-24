@@ -1,7 +1,9 @@
 #include "handle.h"
 #include "json.h"
+#include "offsets.h"
 #include "easywsclient/easywsclient.hpp"
 
+#include <regex>
 #include <memory>
 #include <vector>
 #include <string>
@@ -12,6 +14,9 @@
 #include <unistd.h>
 
 using json = nlohmann::json;
+
+offsets offset = offsets{};
+netvars netvar = netvars{};
 
 bool find_process_by_name(std::string target, proc_handle *out_handle) {
     if (out_handle == nullptr || target.empty())
@@ -28,14 +33,8 @@ bool find_process_by_name(std::string target, proc_handle *out_handle) {
                 continue;
 
             std::string map_path = "/proc/" + std::string(name) + "/maps";
-
-            if (access(map_path.c_str(), F_OK) == -1) // if we can't access the path for whatever reason (not root?)
-                continue;
            
-            proc_handle handle(name); // create a temporary object to check if we have the right file
-
-            if (!handle.is_valid() || !handle.is_running())
-                continue;
+            proc_handle handle(name); // create a temporary object to validate process
 
             std::string exe_name = handle.get_executable();
 
@@ -51,20 +50,12 @@ bool find_process_by_name(std::string target, proc_handle *out_handle) {
 }
 
 int main(int argc, char *argv[]) {
-    if (geteuid() != 0) {
+    if (geteuid() != 0) { // check if user has root privileges
         std::cout << "run as root" << std::endl;
         exit(1);
     }
 
-    if (argc < 2) {
-        std::cout << "please pass in map name" << std::endl;
-        exit(1);
-    }
-
-    std::string map_name = argv[1];
-
     using easywsclient::WebSocket;
-
     std::unique_ptr<WebSocket> ws(WebSocket::from_url("ws://localhost:6969"));
 
     proc_handle handle;
@@ -84,74 +75,90 @@ int main(int argc, char *argv[]) {
     std::cout << "engine_base: " << std::hex << engine_base << std::endl;
     std::cout << "client_panorama_client: " << std::hex << client_base << std::endl;
 
-    unsigned long local_player_offset = 0x214af10;
-    unsigned long entity_list_offset = 0x217b068;
-    unsigned long client_state_offset = 0xe20d08;
-
-    unsigned long entity_health_offset = 0x138;
-    unsigned long entity_team_num_offset = 0x12c;
-    unsigned long entity_vec_origin_offset = 0x170;
-    unsigned long entity_last_place_offset = 0x3df0;
-
     while (true) {
-        unsigned long local_base;
-        handle.read(client_base + local_player_offset, &local_base, sizeof(local_base));
+        unsigned long client_state_base;
+        handle.read(engine_base + offset.client_state, &client_state_base, sizeof(client_state_base));
 
-        if (local_base == NULL)
-            continue;
+        char map_name_buffer[32];
+        handle.read(client_state_base + offset.client_state_map, &map_name_buffer, sizeof(map_name_buffer));
+
+        std::string map_name;
+
+        bool first_letter = false;
+
+        for (int i = 0; i < sizeof(map_name_buffer) - 1; ++i) {
+            char c = map_name_buffer[i];
+
+            // reading map name from memory leads to some weird characters
+            // make sure we're only reading the map name
+            if (isalpha(c) || isdigit(c) || c == '_') {
+                if (!first_letter)
+                    first_letter = true;
+
+                map_name += c;
+            } else {
+                if (first_letter)
+                    break;
+            }
+        }
+
+        unsigned long local_base;
+        handle.read(client_base + offset.local_player, &local_base, sizeof(local_base));
 
         int local_team;
-        handle.read(local_base + entity_team_num_offset, &local_team, sizeof(local_team));
+        handle.read(local_base + netvar.team, &local_team, sizeof(local_team));
 
-        std::vector<float> x_coords;
-        std::vector<float> y_coords;
-        std::vector<int> healths;
-        std::vector<std::string> last_places;
+        std::vector<int> ids = {};
+        std::vector<float> x_positions = {};
+        std::vector<float> y_positions = {};
+        std::vector<int> healths = {};
+        std::vector<std::string> last_places = {};
 
         for (int i = 1; i <= 64; ++i) {
-            unsigned long player_base;
-            handle.read(client_base + entity_list_offset + (i * 0x10), &player_base, sizeof(player_base));
+            unsigned long entity_base;
+            handle.read(client_base + offset.entity_list + i * 0x10, &entity_base, sizeof(entity_base));
 
-            if (player_base == NULL)
+            if (entity_base == NULL)
                 continue;
 
-            int player_health;
-            handle.read(player_base + entity_health_offset, &player_health, sizeof(player_health));
+            int entity_health;
+            handle.read(entity_base + netvar.health, &entity_health, sizeof(entity_health));
 
-            if (player_health <= 0 || player_health > 100)
+            // TODO: dormant check
+            if (entity_health <= 0 || entity_health > 100) // check if entity is alive
                 continue;
 
-            int player_team;
-            handle.read(player_base + entity_team_num_offset, &player_team, sizeof(player_team));
+            int entity_team;
+            handle.read(entity_base + netvar.team, &entity_team, sizeof(entity_team));
 
-            if (local_team == player_team)
+            // TODO: show both teams on radar?
+            if (local_team == entity_team)
                 continue;
 
-            float pos[3];
-            handle.read(player_base + entity_vec_origin_offset, &pos, sizeof(pos));
+            float entity_origin[2];
+            handle.read(entity_base + netvar.origin, &entity_origin, sizeof(entity_origin));
 
             char last_place[32];
-            handle.read(player_base + entity_last_place_offset, &last_place, sizeof(last_place));
+            handle.read(entity_base + netvar.last_place, &last_place, sizeof(last_place));
 
-            x_coords.push_back(pos[0]);
-            y_coords.push_back(pos[1]);
-            healths.push_back(player_health);
+            ids.push_back(i);
+            x_positions.push_back(entity_origin[0]);
+            y_positions.push_back(entity_origin[1]);
+            healths.push_back(entity_health);
             last_places.push_back(std::string(last_place));
         }
 
         json data;
+        data["ids"] = ids;
         data["map_name"] = map_name;
-        data["x"] = x_coords;
-        data["y"] = y_coords;
-        data["health"] = healths;
-        data["last_place"] = last_places;
-
-        //std::cout << "sending" << std::endl;
-        //std::cout << coords.dump() << std::endl;
+        data["x_positions"] = x_positions;
+        data["y_positions"] = y_positions;
+        data["healths"] = healths;
+        data["last_places"] = last_places;
         ws->send(data.dump());
         ws->poll();
 
-        usleep(10 * 1000);
+        usleep(100 * 1000);
     }
 
     return 0;

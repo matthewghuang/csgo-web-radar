@@ -23,16 +23,6 @@ proc_handle::proc_handle(std::string target) {
     }
 }
 
-bool proc_handle::is_valid() {
-    return this->pid != -1;
-}
-
-bool proc_handle::is_running() {
-    struct stat proc_stat;
-
-    return stat(std::string("/proc/" + this->pid_str).c_str(), &proc_stat) == 0; 
-}
-
 std::string proc_handle::get_executable() {
     std::ifstream istream("/proc/" + pid_str + "/comm");
 
@@ -54,9 +44,8 @@ bool proc_handle::read(unsigned long addr, void *buffer, size_t size) {
 
     ssize_t bytes_read = process_vm_readv(this->pid, local, 1, remote, 1, 0);
 
-    if (bytes_read == -1) {
+    if (bytes_read == -1)
         std::cout << std::to_string(errno) << std::endl;
-    }
     
     return bytes_read == size;
 }
