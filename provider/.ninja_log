@@ -1,5 +1,0 @@
-# ninja log v5
-0	434	1561654123625136772	CMakeFiles/provider.dir/src/process.cpp.o	b728e13af7fa1b1
-0	593	1561654123785136772	CMakeFiles/provider.dir/src/easywsclient/easywsclient.cpp.o	47667ff00c54ab57
-0	1975	1561654125161803459	CMakeFiles/provider.dir/src/main.cpp.o	4d0b71cc91d35bd6
-1975	2097	1561654125291803463	bin/provider	5d08d353a42b5c5f
