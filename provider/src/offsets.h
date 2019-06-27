@@ -11,6 +11,7 @@ struct netvars {
     const static unsigned long origin = 0x170;
     const static unsigned long last_place = 0x3df0;
     const static unsigned long team = 0x12c;
+    const static unsigned long simulation_time = 0x2a0;
 };
 
 extern offsets offset;

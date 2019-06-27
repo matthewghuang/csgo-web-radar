@@ -62,11 +62,11 @@
 
     let last_updated = [];
 
-    let ids = [];
     let healths = [];
     let x_positions = [];
     let y_positions = [];
     let last_places = [];
+    let simulation_times = [];
 
     ws.addEventListener("message", (e) => {
         const obj = JSON.parse(e.data);
@@ -83,27 +83,21 @@
             last_updated = [];
         } 
 
-        ids = obj["ids"];
-
         healths = obj["healths"];
-        const new_x_positions = obj["x_positions"];
-        const new_y_positions = obj["y_positions"];
+        x_positions = obj["x_positions"];
+        y_positions = obj["y_positions"];
         last_places = obj["last_places"];
+        const new_simulation_times = obj["simulation_times"];
 
-        for (const i in ids) {
-            const id = ids[i];
+        for (const i in healths) {
+            const old_simulation_time = simulation_times[i];
+            const new_simulation_time = new_simulation_times[i];
 
-            const x_position = x_positions[i];
-            const y_position = y_positions[i];
-            const new_x_position = new_x_positions[i];
-            const new_y_position = new_y_positions[i];
-
-            if ((x_position != new_x_position) || (y_position != new_y_position))
-                last_updated[id] = new Date().getTime();
+            if (new_simulation_time != old_simulation_time)
+                last_updated[i] = new Date().getTime();
         }
 
-        x_positions = new_x_positions;
-        y_positions = new_y_positions;
+        simulation_times = new_simulation_times;
     });
 
     setInterval(() => {
@@ -111,8 +105,7 @@
 
         const now_ms = new Date().getTime();
 
-        for (const i in ids) {
-            const id = ids[i];
+        for (const i in healths) {
             const health = healths[i];
             const x_position = x_positions[i];
             const y_position = y_positions[i];
@@ -121,9 +114,20 @@
             const mapped_x = ((x_position - pos_x) / scale) * ratio;
             const mapped_y = ((y_position - pos_y) / -scale) * ratio;
 
-            const percentage = 1.0 - normalize(now_ms - last_updated[id], 100, 1000);
+            const health_percentage = normalize(health, 0, 100);
 
-            draw_entity(mapped_x, mapped_y, last_place, 255 * percentage, 255, 255, 255);
+            let col_red = 255 * health_percentage;
+            let col_green = 0;
+            let col_blue = 0;
+
+            // entity hasn't had updated info for over 500ms
+            if ((now_ms - last_updated[i]) > 500) {
+                col_red = 0;
+                col_green = 0;
+                col_blue = 255;
+            }
+
+            draw_entity(mapped_x, mapped_y, last_place, col_red, col_green, col_blue, 255);
         }
     }, 1000 / 30);
 </script>
