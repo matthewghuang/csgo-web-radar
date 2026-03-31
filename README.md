@@ -2,6 +2,8 @@
 
 This project was made to learn more about game hacking in Linux.
 
+![demo image](example.png)
+
 Technologies:
 - Express for web server
 - WebSockets for communication between web server and client
